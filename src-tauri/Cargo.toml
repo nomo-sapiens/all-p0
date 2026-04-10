@@ -1,0 +1,28 @@
+[package]
+name = "all-p0"
+version = "0.1.0"
+description = "AllP0 - GitHub PR Manager"
+authors = []
+edition = "2021"
+
+[lib]
+name = "all_p0_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+thiserror = "1"
+open = "5"
+
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }

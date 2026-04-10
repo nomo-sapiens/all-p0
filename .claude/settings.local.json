@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import cairosvg; print\\('cairosvg ok'\\)\")",
+      "Bash(git -C /Users/dirkbrand/Repos/PERSONAL/all-p0 config user.name)",
+      "Bash(git config:*)"
+    ]
+  }
+}
