@@ -1,8 +1,11 @@
+use crate::error::AppError;
 use crate::github::client::GitHubClient;
 use crate::github::types::{AuthStatus, PullRequest};
 use crate::store::json_store::JsonStore;
+use std::collections::HashMap;
 
 const MANUAL_REVIEW_LIST_KEY: &str = "manual_review_list";
+const PR_PRIORITIES_KEY: &str = "pr_priorities";
 
 /// App state held in Tauri State
 pub struct AppState {
@@ -72,6 +75,43 @@ fn id_to_url(id: &str) -> Option<String> {
     Some(format!("https://github.com/{repo_part}/pull/{number_part}"))
 }
 
+// ---- Priority business logic ----
+
+/// Set a PR priority (0-3). Returns an error if the priority is out of range.
+pub fn set_priority_impl(store: &JsonStore, id: &str, priority: u8) -> Result<(), AppError> {
+    if !(0..=3).contains(&priority) {
+        return Err(AppError::InvalidUrl("Priority must be 0-3".to_string()));
+    }
+    store.set_object_field(
+        PR_PRIORITIES_KEY,
+        id,
+        serde_json::Value::Number(priority.into()),
+    )
+}
+
+/// Remove the priority for a PR (no-op if the PR has no stored priority).
+pub fn clear_priority_impl(store: &JsonStore, id: &str) -> Result<(), AppError> {
+    store.remove_object_field(PR_PRIORITIES_KEY, id)
+}
+
+/// Return all stored priorities as HashMap<pr_id, priority_u8>.
+/// Entries that are not valid 1-4 integers are silently skipped.
+pub fn get_all_priorities_impl(store: &JsonStore) -> HashMap<String, u8> {
+    store
+        .get_object(PR_PRIORITIES_KEY)
+        .into_iter()
+        .filter_map(|(k, v)| {
+            let n = v.as_u64()?;
+            let p = u8::try_from(n).ok()?;
+            if (0..=3).contains(&p) {
+                Some((k, p))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 // ---- Tauri commands ----
 
 #[tauri::command]
@@ -103,6 +143,30 @@ pub async fn get_auth_status(state: tauri::State<'_, AppState>) -> Result<AuthSt
             None
         },
     })
+}
+
+#[tauri::command]
+pub async fn set_pr_priority(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    priority: u8,
+) -> Result<(), String> {
+    set_priority_impl(&state.store, &id, priority).map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn clear_pr_priority(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    clear_priority_impl(&state.store, &id).map_err(String::from)
+}
+
+#[tauri::command]
+pub async fn get_all_priorities(
+    state: tauri::State<'_, AppState>,
+) -> Result<HashMap<String, u8>, String> {
+    Ok(get_all_priorities_impl(&state.store))
 }
 
 #[cfg(test)]
@@ -336,5 +400,132 @@ mod tests {
 
         // Failed manual PR should be skipped gracefully
         assert_eq!(prs.len(), 0);
+    }
+
+    // ---- Priority tests ----
+
+    #[test]
+    fn test_set_priority_valid_values() {
+        let (store, _dir) = make_store();
+        for p in 0u8..=3 {
+            set_priority_impl(&store, "owner/repo#1", p).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_set_priority_invalid_four() {
+        let (store, _dir) = make_store();
+        let err = set_priority_impl(&store, "owner/repo#1", 4).unwrap_err();
+        assert!(err.to_string().contains("Priority must be 0-3"));
+    }
+
+    #[test]
+    fn test_set_priority_invalid_five() {
+        let (store, _dir) = make_store();
+        let err = set_priority_impl(&store, "owner/repo#1", 5).unwrap_err();
+        assert!(err.to_string().contains("Priority must be 0-3"));
+    }
+
+    #[test]
+    fn test_set_priority_invalid_255() {
+        let (store, _dir) = make_store();
+        let err = set_priority_impl(&store, "owner/repo#1", 255).unwrap_err();
+        assert!(err.to_string().contains("Priority must be 0-3"));
+    }
+
+    #[test]
+    fn test_set_priority_overwrite_existing() {
+        let (store, _dir) = make_store();
+        set_priority_impl(&store, "owner/repo#1", 2).unwrap();
+        set_priority_impl(&store, "owner/repo#1", 3).unwrap();
+        let all = get_all_priorities_impl(&store);
+        assert_eq!(all.get("owner/repo#1"), Some(&3u8));
+    }
+
+    #[test]
+    fn test_clear_priority_existing() {
+        let (store, _dir) = make_store();
+        set_priority_impl(&store, "owner/repo#1", 3).unwrap();
+        clear_priority_impl(&store, "owner/repo#1").unwrap();
+        let all = get_all_priorities_impl(&store);
+        assert!(!all.contains_key("owner/repo#1"));
+    }
+
+    #[test]
+    fn test_clear_priority_nonexistent() {
+        let (store, _dir) = make_store();
+        // Should not error when clearing a priority that was never set
+        clear_priority_impl(&store, "owner/repo#999").unwrap();
+    }
+
+    #[test]
+    fn test_get_all_priorities_empty_store() {
+        let (store, _dir) = make_store();
+        let all = get_all_priorities_impl(&store);
+        assert!(all.is_empty());
+    }
+
+    #[test]
+    fn test_get_all_priorities_multiple_entries() {
+        let (store, _dir) = make_store();
+        set_priority_impl(&store, "org/a#1", 0).unwrap();
+        set_priority_impl(&store, "org/b#2", 1).unwrap();
+        set_priority_impl(&store, "org/c#3", 2).unwrap();
+        set_priority_impl(&store, "org/d#4", 3).unwrap();
+
+        let all = get_all_priorities_impl(&store);
+        assert_eq!(all.len(), 4);
+        assert_eq!(all["org/a#1"], 0);
+        assert_eq!(all["org/b#2"], 1);
+        assert_eq!(all["org/c#3"], 2);
+        assert_eq!(all["org/d#4"], 3);
+    }
+
+    #[test]
+    fn test_get_all_priorities_skips_invalid_entries() {
+        let (store, _dir) = make_store();
+        // Manually insert invalid values (4, 5, and a string) and one valid value into the object
+        store
+            .set_object_field(PR_PRIORITIES_KEY, "org/a#1", serde_json::json!(4))
+            .unwrap();
+        store
+            .set_object_field(PR_PRIORITIES_KEY, "org/b#2", serde_json::json!(5))
+            .unwrap();
+        store
+            .set_object_field(PR_PRIORITIES_KEY, "org/c#3", serde_json::json!("bad"))
+            .unwrap();
+        store
+            .set_object_field(PR_PRIORITIES_KEY, "org/d#4", serde_json::json!(2))
+            .unwrap();
+
+        let all = get_all_priorities_impl(&store);
+        // Only org/d#4 with value 2 should survive
+        assert_eq!(all.len(), 1);
+        assert_eq!(all["org/d#4"], 2);
+    }
+
+    #[test]
+    fn test_priority_full_roundtrip() {
+        let (store, _dir) = make_store();
+        let id = "myorg/myrepo#42";
+
+        // set
+        set_priority_impl(&store, id, 3).unwrap();
+        let all = get_all_priorities_impl(&store);
+        assert_eq!(all.get(id), Some(&3u8));
+
+        // overwrite
+        set_priority_impl(&store, id, 1).unwrap();
+        let all = get_all_priorities_impl(&store);
+        assert_eq!(all.get(id), Some(&1u8));
+
+        // clear
+        clear_priority_impl(&store, id).unwrap();
+        let all = get_all_priorities_impl(&store);
+        assert!(!all.contains_key(id));
+
+        // get after clear returns nothing
+        let all = get_all_priorities_impl(&store);
+        assert!(all.is_empty());
     }
 }

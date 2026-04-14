@@ -3,10 +3,13 @@ import { FolderOpen, Eye, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMyPRs, useReviewPRs } from '@/hooks/usePRs';
 import { useHiddenPRs, useHidePR, useUnhidePR } from '@/hooks/useHiddenPRs';
+import { usePriorities, useSetPriority, useClearPriority } from '@/hooks/usePriorities';
+import { useReviewFilters } from '@/hooks/useReviewFilters';
 import { useQueryClient } from '@tanstack/react-query';
 import { PRList } from './PRList';
 import { UrlInput } from './UrlInput';
-import type { Pane as PaneType } from '@/types';
+import { FilterPanel } from './FilterPanel';
+import type { Pane as PaneType, SortOrder, Priority } from '@/types';
 
 interface PaneProps {
   title: string;
@@ -31,9 +34,17 @@ function PRSkeleton() {
   );
 }
 
+const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
+  { value: 'updated', label: 'Updated' },
+  { value: 'created', label: 'Created' },
+  { value: 'priority', label: 'Priority' },
+];
+
 export function Pane({ title, pane, isReview = false }: PaneProps) {
   const [grouped, setGrouped] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOrder>('updated');
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const queryResult = isReview ? useReviewPRs() : useMyPRs();
@@ -43,16 +54,41 @@ export function Pane({ title, pane, isReview = false }: PaneProps) {
   const { mutate: hidePR } = useHidePR(pane);
   const { mutate: unhidePR } = useUnhidePR(pane);
 
+  const { data: prioritiesData } = usePriorities();
+  const priorities: Record<string, Priority> = prioritiesData ?? {};
+  const { mutate: setPriority } = useSetPriority();
+  const { mutate: clearPriority } = useClearPriority();
+
+  const { filters, setFilters, clearFilters, isActive: filtersActive } = useReviewFilters();
+
   const allPRs = prs ?? [];
+
+  // Apply filters (review pane only)
+  const filteredPRs = isReview && filtersActive
+    ? allPRs.filter((pr) => {
+        if (filters.authors.length > 0 && !filters.authors.includes(pr.author)) return false;
+        if (filters.repos.length > 0 && !filters.repos.includes(pr.repo)) return false;
+        return true;
+      })
+    : allPRs;
+
   const hiddenCount = hiddenIds.size;
 
   const visibleCount = showHidden
-    ? allPRs.length
-    : allPRs.filter((pr) => !hiddenIds.has(pr.id)).length;
+    ? filteredPRs.length
+    : filteredPRs.filter((pr) => !hiddenIds.has(pr.id)).length;
 
   const handleRefresh = () => {
     const key = isReview ? ['prs', 'review'] : ['prs', 'mine'];
     void queryClient.invalidateQueries({ queryKey: key });
+  };
+
+  const handleSetPriority = (id: string, priority: Priority | null) => {
+    if (priority === null) {
+      clearPriority(id);
+    } else {
+      setPriority({ id, priority });
+    }
   };
 
   return (
@@ -65,6 +101,39 @@ export function Pane({ title, pane, isReview = false }: PaneProps) {
         </span>
 
         <div className="ml-auto flex items-center gap-1">
+          {/* Sort control */}
+          <div className="inline-flex items-center rounded border border-border overflow-hidden">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setSortOrder(opt.value)}
+                className={cn(
+                  'px-2 py-1 text-xs font-medium transition-colors',
+                  sortOrder === opt.value
+                    ? 'bg-accent-muted text-accent-text'
+                    : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-tertiary'
+                )}
+                title={`Sort by ${opt.label}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Filter button (review pane only) */}
+          {isReview && (
+            <FilterPanel
+              allPRs={allPRs}
+              filters={filters}
+              onSetFilters={setFilters}
+              onClearFilters={clearFilters}
+              isActive={filtersActive}
+              open={filterPanelOpen}
+              onToggle={() => setFilterPanelOpen((o) => !o)}
+              onClose={() => setFilterPanelOpen(false)}
+            />
+          )}
+
           {/* Group by repo toggle */}
           <button
             onClick={() => setGrouped((g) => !g)}
@@ -111,6 +180,13 @@ export function Pane({ title, pane, isReview = false }: PaneProps) {
         </div>
       </div>
 
+      {/* Showing X of Y when filters active */}
+      {isReview && filtersActive && !isLoading && (
+        <div className="px-4 py-1.5 text-xs text-fg-muted border-b border-border bg-bg-secondary">
+          Showing {visibleCount} of {allPRs.filter((pr) => !hiddenIds.has(pr.id)).length}
+        </div>
+      )}
+
       {/* URL input for review pane */}
       {isReview && <UrlInput />}
 
@@ -139,13 +215,16 @@ export function Pane({ title, pane, isReview = false }: PaneProps) {
           </div>
         ) : (
           <PRList
-            prs={allPRs}
+            prs={filteredPRs}
             hiddenIds={hiddenIds}
             showHidden={showHidden}
             pane={pane}
             grouped={grouped}
             onHide={(id) => hidePR(id)}
             onUnhide={(id) => unhidePR(id)}
+            sortOrder={sortOrder}
+            priorities={priorities}
+            onSetPriority={handleSetPriority}
           />
         )}
       </div>

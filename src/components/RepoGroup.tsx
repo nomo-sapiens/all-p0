@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { openInBrowser } from '@/lib/api';
 import { PRCard } from './PRCard';
-import type { PullRequest, Pane } from '@/types';
+import type { PullRequest, Pane, Priority } from '@/types';
 
 interface RepoGroupProps {
   repo: string;
@@ -13,6 +13,8 @@ interface RepoGroupProps {
   pane: Pane;
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
+  priorities?: Record<string, Priority>;
+  onSetPriority?: (id: string, priority: Priority | null) => void;
 }
 
 export function RepoGroup({
@@ -24,6 +26,8 @@ export function RepoGroup({
   pane,
   onHide,
   onUnhide,
+  priorities = {},
+  onSetPriority,
 }: RepoGroupProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -75,6 +79,8 @@ export function RepoGroup({
                 isHidden={hidden}
                 onHide={onHide}
                 onUnhide={onUnhide}
+                priority={priorities[pr.id]}
+                onSetPriority={(p) => onSetPriority?.(pr.id, p)}
               />
             );
           })}

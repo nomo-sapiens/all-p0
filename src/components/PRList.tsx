@@ -1,7 +1,7 @@
 import { GitPullRequest } from 'lucide-react';
 import { RepoGroup } from './RepoGroup';
 import { PRCard } from './PRCard';
-import type { PullRequest, Pane } from '@/types';
+import type { PullRequest, Pane, Priority, SortOrder } from '@/types';
 
 interface PRListProps {
   prs: PullRequest[];
@@ -11,6 +11,32 @@ interface PRListProps {
   grouped: boolean;
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
+  sortOrder?: SortOrder;
+  priorities?: Record<string, Priority>;
+  onSetPriority?: (id: string, priority: Priority | null) => void;
+}
+
+function sortPRs(prs: PullRequest[], sortOrder: SortOrder, priorities: Record<string, Priority>): PullRequest[] {
+  const sorted = [...prs];
+  if (sortOrder === 'created') {
+    sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } else if (sortOrder === 'priority') {
+    sorted.sort((a, b) => {
+      const pa = priorities[a.id];
+      const pb = priorities[b.id];
+      if (pa !== undefined && pb !== undefined) {
+        if (pa !== pb) return pa - pb;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      }
+      if (pa !== undefined) return -1;
+      if (pb !== undefined) return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  } else {
+    // 'updated' (default)
+    sorted.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }
+  return sorted;
 }
 
 export function PRList({
@@ -21,6 +47,9 @@ export function PRList({
   grouped,
   onHide,
   onUnhide,
+  sortOrder = 'updated',
+  priorities = {},
+  onSetPriority,
 }: PRListProps) {
   const visiblePRs = showHidden ? prs : prs.filter((pr) => !hiddenIds.has(pr.id));
 
@@ -48,9 +77,47 @@ export function PRList({
       groups.get(pr.repo)!.prs.push(pr);
     }
 
+    // Sort PRs within each group
+    for (const group of groups.values()) {
+      group.prs = sortPRs(group.prs, sortOrder, priorities);
+    }
+
+    // Sort the groups themselves
+    const groupEntries = Array.from(groups.entries());
+    if (sortOrder === 'priority') {
+      groupEntries.sort(([, a], [, b]) => {
+        const bestA = a.prs.reduce<Priority | undefined>((best, pr) => {
+          const p = priorities[pr.id];
+          if (p === undefined) return best;
+          return best === undefined ? p : Math.min(best, p) as Priority;
+        }, undefined);
+        const bestB = b.prs.reduce<Priority | undefined>((best, pr) => {
+          const p = priorities[pr.id];
+          if (p === undefined) return best;
+          return best === undefined ? p : Math.min(best, p) as Priority;
+        }, undefined);
+        if (bestA !== undefined && bestB !== undefined) return bestA - bestB;
+        if (bestA !== undefined) return -1;
+        if (bestB !== undefined) return 1;
+        return 0;
+      });
+    } else if (sortOrder === 'created') {
+      groupEntries.sort(([, a], [, b]) => {
+        const latestA = Math.max(...a.prs.map((pr) => new Date(pr.createdAt).getTime()));
+        const latestB = Math.max(...b.prs.map((pr) => new Date(pr.createdAt).getTime()));
+        return latestB - latestA;
+      });
+    } else {
+      groupEntries.sort(([, a], [, b]) => {
+        const latestA = Math.max(...a.prs.map((pr) => new Date(pr.updatedAt).getTime()));
+        const latestB = Math.max(...b.prs.map((pr) => new Date(pr.updatedAt).getTime()));
+        return latestB - latestA;
+      });
+    }
+
     return (
       <div className="space-y-1">
-        {Array.from(groups.entries()).map(([repo, { repoUrl, prs: groupPRs }]) => (
+        {groupEntries.map(([repo, { repoUrl, prs: groupPRs }]) => (
           <RepoGroup
             key={repo}
             repo={repo}
@@ -61,16 +128,16 @@ export function PRList({
             pane={pane}
             onHide={onHide}
             onUnhide={onUnhide}
+            priorities={priorities}
+            onSetPriority={onSetPriority}
           />
         ))}
       </div>
     );
   }
 
-  // Flat list, sorted by updatedAt desc
-  const sorted = [...visiblePRs].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
+  // Flat list, sorted
+  const sorted = sortPRs(visiblePRs, sortOrder, priorities);
 
   return (
     <div className="space-y-2">
@@ -82,6 +149,8 @@ export function PRList({
           isHidden={hiddenIds.has(pr.id)}
           onHide={onHide}
           onUnhide={onUnhide}
+          priority={priorities[pr.id]}
+          onSetPriority={(p) => onSetPriority?.(pr.id, p)}
         />
       ))}
     </div>

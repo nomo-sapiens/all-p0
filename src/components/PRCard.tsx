@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, ExternalLink, Pin } from 'lucide-react';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { openInBrowser } from '@/lib/api';
@@ -7,7 +8,7 @@ import {
   ChecksStatusBadge,
   DraftBadge,
 } from './StatusBadge';
-import type { PullRequest, Pane } from '@/types';
+import type { PullRequest, Pane, Priority } from '@/types';
 
 interface PRCardProps {
   pr: PullRequest;
@@ -15,9 +16,102 @@ interface PRCardProps {
   isHidden: boolean;
   onHide: (id: string) => void;
   onUnhide: (id: string) => void;
+  priority?: Priority;
+  onSetPriority: (priority: Priority | null) => void;
 }
 
-export function PRCard({ pr, isHidden, onHide, onUnhide }: PRCardProps) {
+const PRIORITY_CONFIG: Record<
+  Priority,
+  { textClass: string; borderClass: string; label: string }
+> = {
+  0: { textClass: 'text-danger', borderClass: 'border-danger/40', label: 'P0' },
+  1: { textClass: 'text-warning', borderClass: 'border-warning/40', label: 'P1' },
+  2: { textClass: 'text-accent-text', borderClass: 'border-accent/40', label: 'P2' },
+  3: { textClass: 'text-fg-muted', borderClass: 'border-border', label: 'P3' },
+};
+
+function PrioritySelector({
+  priority,
+  onSetPriority,
+}: {
+  priority?: Priority;
+  onSetPriority: (priority: Priority | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const config = priority !== undefined ? PRIORITY_CONFIG[priority] : null;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className={cn(
+          'inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium border transition-colors hover:opacity-80',
+          config
+            ? `${config.textClass} ${config.borderClass}`
+            : 'text-fg-muted border-border'
+        )}
+        title="Set priority"
+        aria-label="Set priority"
+      >
+        {config ? config.label : '—'}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[80px]">
+          {([0, 1, 2, 3] as Priority[]).map((p) => {
+            const cfg = PRIORITY_CONFIG[p];
+            return (
+              <button
+                key={p}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetPriority(p);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'w-full text-left px-3 py-1.5 text-xs font-medium transition-colors hover:bg-bg-tertiary',
+                  cfg.textClass
+                )}
+              >
+                {cfg.label}
+              </button>
+            );
+          })}
+          {priority !== undefined && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetPriority(null);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-1.5 text-xs text-fg-muted transition-colors hover:bg-bg-tertiary border-t border-border mt-1 pt-1.5"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PRCard({ pr, isHidden, onHide, onUnhide, priority, onSetPriority }: PRCardProps) {
   const handleTitleClick = () => {
     void openInBrowser(pr.url);
   };
@@ -51,6 +145,7 @@ export function PRCard({ pr, isHidden, onHide, onUnhide }: PRCardProps) {
         <div className="ml-auto flex items-center gap-2">
           {pr.isDraft && <DraftBadge />}
           <ReviewDecisionBadge decision={pr.reviewDecision} />
+          <PrioritySelector priority={priority} onSetPriority={onSetPriority} />
         </div>
       </div>
 

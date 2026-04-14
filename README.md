@@ -10,7 +10,10 @@ AllP0 gives you a single window to track both your own open PRs and PRs waiting 
 
 - **Two-pane layout** — your open PRs on the left, PRs assigned for your review on the right
 - **Paste any GitHub PR URL** to add it to your review queue manually
+- **Priority labels (P0–P3)** — tag any PR with a priority; P0 is red/critical, P3 is grey/low
+- **Sort by updated, created, or priority** — per pane, independently
 - **Group PRs by repository** so you can see at a glance which repos need attention
+- **Filter the review queue by author or project** — cut down noise when you only care about specific teams or repos
 - **Hide PRs** you don't want to see right now, and bring them back anytime
 - **Auto-refreshes every 30 seconds** — no manual polling needed
 - **Dark mode with indigo accent theme**
@@ -29,20 +32,45 @@ AllP0 gives you a single window to track both your own open PRs and PRs waiting 
 
 ## Getting Started
 
+### 1. Authenticate with GitHub CLI
+
+AllP0 uses your existing `gh` login — no separate token setup needed.
+
 ```bash
-# 1. Clone and install
+gh auth login   # skip if already authenticated
+```
+
+### 2. Build and install
+
+```bash
 git clone https://github.com/your-username/all-p0.git
 cd all-p0
 npm install
+npm run tauri build
+```
 
-# 2. Authenticate with GitHub CLI (if you haven't already)
-gh auth login
+The built app and a `.dmg` installer are placed in:
+```
+src-tauri/target/release/bundle/macos/
+```
 
-# 3. Run in development mode with hot reload
+Open the `.dmg`, drag **AllP0.app** to your Applications folder, and launch it.
+
+> **First launch on macOS:** because the app is not yet notarized, macOS may block it. Right-click the app → **Open** → **Open** to allow it, or run:
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/AllP0.app
+> ```
+> You only need to do this once.
+
+### For developers
+
+To run with hot reload instead of building:
+
+```bash
 npm run tauri dev
 ```
 
-The app window opens automatically. If you see a "Not authenticated" error, run `gh auth login` and restart.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the full developer guide.
 
 ---
 
@@ -50,11 +78,18 @@ The app window opens automatically. If you see a "Not authenticated" error, run 
 
 The app is a single window split into two panes:
 
-**Left pane — Your PRs**: Lists every open PR you authored, grouped by repository. Each row shows the PR title, status checks, draft state, and how long ago it was updated.
+**Left pane — Your PRs**: Lists every open PR you authored. Each card shows the title, author, approval count, CI check status, draft state, mergeable state, labels, and last-updated time.
 
-**Right pane — Review Queue**: Lists PRs where you're a requested reviewer, plus any PRs you've manually added via URL paste. These are also grouped by repo. PRs you've hidden are collapsed and can be restored from a "hidden" section at the bottom.
+**Right pane — Review Queue**: Lists PRs where you're a requested reviewer, plus any PRs you've manually added by pasting a GitHub PR URL. A filter button lets you narrow the list by author or project (repo) — useful when you're requested on many PRs but only want to focus on specific teams.
 
-The toolbar has a refresh button (also fires automatically every 30 seconds) and a URL input for pasting in a PR you want to track.
+Both panes share the same controls in their header:
+- **Sort** — choose between *Updated*, *Created*, or *Priority*
+- **Group by repo** — toggle to collapse PRs under their repository header, with a clickable link to open the repo
+- **Hidden count** — shows how many PRs are hidden; click to reveal and restore them
+
+**Priority (P0–P3)**: Each PR card has a small priority button. Click it to assign P0 (red, critical) through P3 (grey, low). Priorities persist across restarts and drive the *Priority* sort order. When sorting by priority, unset PRs appear last.
+
+The header bar shows your GitHub username, a manual refresh button, and a "last refreshed X seconds ago" counter.
 
 ---
 
@@ -62,10 +97,10 @@ The toolbar has a refresh button (also fires automatically every 30 seconds) and
 
 No config files. The app reads your GitHub token directly from `gh auth token` at startup. As long as `gh auth login` has been run once, AllP0 will work.
 
-Persistent state (hidden PRs, manually-added review URLs) is stored in a JSON file in your OS app data directory (`~/Library/Application Support/com.allp0.app/` on macOS).
+Persistent state (hidden PRs, manually-added review URLs, PR priorities) is stored in a JSON file in your OS app data directory (`~/Library/Application Support/com.allp0.app/` on macOS). Review queue filters are stored in the app's local storage and persist across restarts.
 
 ---
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for the full developer guide: project structure, running tests, building for distribution, architecture notes, and how to add new Tauri commands.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the full guide: project structure, running tests, architecture notes, and how to add new commands.

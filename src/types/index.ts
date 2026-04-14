@@ -24,3 +24,6 @@ export interface AuthStatus {
 }
 
 export type Pane = 'mine' | 'review';
+
+export type Priority = 0 | 1 | 2 | 3;
+export type SortOrder = 'updated' | 'created' | 'priority';
