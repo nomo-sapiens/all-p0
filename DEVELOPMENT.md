@@ -49,7 +49,7 @@ The key architectural boundary: the `commands/` handlers are kept thin (validate
 ## Running Locally
 
 ```bash
-npm run tauri dev
+pnpm dev
 ```
 
 This starts the Vite dev server, waits for it, then opens the native Tauri window. React hot-module replacement works normally — edits to `src/` reflect immediately. Changes to `src-tauri/src/` trigger a Rust recompile and app restart.
@@ -62,11 +62,11 @@ This starts the Vite dev server, waits for it, then opens the native Tauri windo
 
 ```bash
 # Standard test run
-npm run test:backend
+pnpm test:backend
 # equivalent: cd src-tauri && cargo test
 
 # With HTML coverage report (requires cargo-tarpaulin)
-npm run test:coverage
+pnpm test:coverage
 # equivalent: cd src-tauri && cargo tarpaulin --out Html
 # Output: tarpaulin-report.html (open in browser)
 ```
@@ -81,7 +81,7 @@ The backend targets 100% line coverage. `wiremock` is used to mock GitHub API re
 ### Frontend
 
 ```bash
-npm run test:frontend
+pnpm test:frontend
 # equivalent: vitest run
 ```
 
@@ -90,7 +90,7 @@ Tests live alongside components in `src/` or under `src/test/`. The Vitest confi
 ### TypeScript type check
 
 ```bash
-npx tsc --noEmit
+pnpm exec tsc --noEmit
 ```
 
 Run this before opening a PR — the CI enforces it.
@@ -98,7 +98,7 @@ Run this before opening a PR — the CI enforces it.
 ### Lint
 
 ```bash
-npm run lint
+pnpm lint
 # eslint src --ext ts,tsx --max-warnings 0
 ```
 
@@ -114,7 +114,7 @@ The bundle config points to `src-tauri/icons/icon.png`. You need to generate all
 
 ```bash
 # Provide a 1024x1024 PNG
-npm run tauri icon path/to/your-icon-1024.png
+pnpm tauri icon path/to/your-icon-1024.png
 # Writes all required sizes to src-tauri/icons/
 ```
 
@@ -123,12 +123,12 @@ Without this, `tauri build` will error on missing icon files.
 ### Step 2 — Release build
 
 ```bash
-npm run tauri build
+pnpm build
 # Output: src-tauri/target/release/bundle/
 #   macOS:  macos/AllP0.app  and  macos/AllP0.dmg
 ```
 
-The debug build used in CI (`npm run tauri build -- --debug`) skips optimizations and is significantly faster.
+The debug build used in CI (`pnpm build -- --debug`) skips optimizations and is significantly faster.
 
 ### Step 3 — Code signing (for distribution outside the App Store)
 
@@ -194,10 +194,10 @@ TanStack Query hooks in `src/hooks/` call `invoke()` wrappers from `src/lib/api.
 Run `gh auth login` and restart the app. The token is only read at launch.
 
 **Build fails: missing icon files**
-Run `npm run tauri icon path/to/icon.png` with a 1024x1024 source image first.
+Run `pnpm tauri icon path/to/icon.png` with a 1024x1024 source image first.
 
 **`cargo check` or `cargo test` fails immediately**
-Make sure Rust stable is installed and up to date: `rustup update stable`. Also check that you're running from the repo root (the `npm run` scripts handle the `cd src-tauri` for you).
+Make sure Rust stable is installed and up to date: `rustup update stable`. Also check that you're running from the repo root (the `pnpm` scripts handle the `cd src-tauri` for you).
 
 **Vite dev server port conflict**
 The Tauri dev config expects Vite on `http://localhost:1420`. If something else is using that port, kill it or change `devUrl` in `src-tauri/tauri.conf.json` and the Vite config to match.

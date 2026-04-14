@@ -47,7 +47,9 @@ export function Pane({ title, pane, isReview = false }: PaneProps) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
 
   const queryClient = useQueryClient();
-  const queryResult = isReview ? useReviewPRs() : useMyPRs();
+  const myPRsResult = useMyPRs();
+  const reviewPRsResult = useReviewPRs();
+  const queryResult = isReview ? reviewPRsResult : myPRsResult;
   const { data: prs, isLoading, isError, error, isFetching, refetch } = queryResult;
 
   const hiddenIds = useHiddenPRs(pane);

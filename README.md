@@ -25,7 +25,7 @@ AllP0 gives you a single window to track both your own open PRs and PRs waiting 
 
 - macOS (the only supported platform)
 - [Rust](https://rustup.rs/) stable toolchain
-- Node.js 18+
+- Node.js 18+ with [pnpm](https://pnpm.io/installation) (`npm i -g pnpm`)
 - [GitHub CLI](https://cli.github.com/) authenticated: `gh auth login`
 
 ---
@@ -45,8 +45,8 @@ gh auth login   # skip if already authenticated
 ```bash
 git clone https://github.com/your-username/all-p0.git
 cd all-p0
-npm install
-npm run tauri build
+pnpm install
+pnpm build
 ```
 
 The built app and a `.dmg` installer are placed in:
@@ -67,7 +67,7 @@ Open the `.dmg`, drag **AllP0.app** to your Applications folder, and launch it.
 To run with hot reload instead of building:
 
 ```bash
-npm run tauri dev
+pnpm dev
 ```
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for the full developer guide.
