@@ -120,7 +120,15 @@ pnpm tauri icon path/to/your-icon-1024.png
 
 Without this, `tauri build` will error on missing icon files.
 
-### Step 2 — Release build
+### Step 2 — Install `create-dmg` (macOS, one-time)
+
+Tauri's DMG bundler requires this Homebrew tool:
+
+```bash
+brew install create-dmg
+```
+
+### Step 3 — Release build
 
 ```bash
 pnpm build

@@ -27,6 +27,7 @@ AllP0 gives you a single window to track both your own open PRs and PRs waiting 
 - [Rust](https://rustup.rs/) stable toolchain
 - Node.js 18+ with [pnpm](https://pnpm.io/installation) (`npm i -g pnpm`)
 - [GitHub CLI](https://cli.github.com/) authenticated: `gh auth login`
+- `create-dmg` for building the installer: `brew install create-dmg`
 
 ---
 
